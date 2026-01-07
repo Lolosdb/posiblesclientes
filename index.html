@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1e88e5">
+    
+    <link rel="icon" type="image/png" href="assets/objetivo.png">
+    <link rel="apple-touch-icon" href="assets/objetivo.png">
+    <title>Gestión Clientes</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* --- ESTILOS GENERALES --- */
+        :root {
+            --primary-blue: #1e88e5;
+            --bg-gray: #f4f6f9;
+            --danger: #e53935;
+            --success: #43a047;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-gray);
+            margin: 0; padding: 0;
+            padding-bottom: 90px;
+            overscroll-behavior: none;
+            -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- CLASE NUEVA PARA MAYÚSCULAS VISUALES --- */
+        .input-capital {
+            text-transform: capitalize; /* Visualmente pone la primera letra de cada palabra en mayúscula */
+        }
+        
+        /* Clase para notas (Solo primera letra) */
+        .input-sentence {
+            /* No hay CSS perfecto para esto, lo haremos por JS, pero esto ayuda */
+        }
+
+        /* Pines mapa ajustados */
+        .leaflet-marker-icon {
+            width: 18px !important; height: 30px !important;
+            margin-left: -9px !important; margin-top: -30px !important;
+        }
+        .leaflet-marker-shadow {
+            width: 25px !important; height: 25px !important;
+            margin-left: -8px !important; margin-top: -25px !important;
+        }
+        .leaflet-popup-content-wrapper { border-radius: 8px; font-size: 13px; }
+
+        /* --- DASHBOARD --- */
+        #pantalla-dash { padding: 20px; display: none; padding-top: 40px; }
+        .dash-total-card {
+            background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+            color: white; padding: 25px 20px; border-radius: 18px;
+            margin-bottom: 25px; box-shadow: 0 8px 20px rgba(30, 136, 229, 0.4);
+            text-align: center;
+        }
+        .dash-total-card div:first-child { text-transform: uppercase; letter-spacing: 1px; font-size: 13px; opacity: 0.9; }
+        .grid-provincias { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stat-card {
+            background: white; padding: 15px; border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid #ddd;
+        }
+        .stat-card h4 { margin: 0; font-size: 11px; text-transform: uppercase; color: #777; }
+        .stat-card .number { font-size: 24px; font-weight: bold; margin-top: 5px; color: #333; }
+        
+        .border-asturias { border-left-color: #1e88e5; }
+        .border-cantabria { border-left-color: #e53935; }
+        .border-leon { border-left-color: #8e24aa; }
+        .border-galicia { border-left-color: #039be5; }
+
+        /* --- UI ELEMENTS --- */
+        .fab-btn {
+            position: fixed; bottom: 85px; right: 20px;
+            width: 56px; height: 56px; background-color: var(--primary-blue);
+            color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 24px; cursor: pointer; z-index: 1000;
+        }
+
+        .search-container { background: white; padding: 15px; position: sticky; top: 0; z-index: 100; padding-top: max(15px, env(safe-area-inset-top)); }
+        .search-box { background: #f1f3f4; border-radius: 8px; padding: 10px 15px; display: flex; align-items: center; }
+        .search-box input { border: none; background: transparent; margin-left: 10px; outline: none; width: 100%; font-size: 16px; -webkit-user-select: text; user-select: text; }
+
+        .card-list { padding: 15px; display: none; padding-bottom: 100px; }
+        .card {
+            background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #eee; position: relative;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .client-name { font-weight: 800; font-size: 16px; color: #333; }
+        .tags-row { display: flex; gap: 10px; margin-top: 8px; }
+        .tag { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .tag-loc { background: #e3f2fd; color: #1565c0; }
+        .tag-user { background: #e8f5e9; color: #2e7d32; text-transform: uppercase; }
+
+        #pantalla-mapa { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 60px; z-index: 90; }
+        #mi-mapa { width: 100%; height: 100%; }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; width: 100%; background: var(--primary-blue);
+            display: flex; justify-content: space-around; padding: 12px 0; color: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 2000;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+        .nav-item { text-align: center; font-size: 10px; opacity: 0.7; width: 33%; cursor: pointer; }
+        .nav-item.active { opacity: 1; font-weight: bold; }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
+
+        /* --- MODALES --- */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            z-index: 3000; justify-content: center; align-items: flex-end;
+        }
+        .modal-content {
+            background: white; width: 100%; max-width: 500px;
+            height: 92vh; border-radius: 20px 20px 0 0;
+            display: flex; flex-direction: column; overflow: hidden;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        .modal-header { padding: 15px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; -webkit-user-select: text; user-select: text; padding-bottom: 80px;}
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #555; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
+            font-size: 16px; box-sizing: border-box; background: #fff; font-family: inherit;
+        }
+        /* Resaltar campo activo */
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.1);
+            outline: none;
+        }
+
+        .btn-gps {
+            background: #e3f2fd; color: #1565c0; border: 1px dashed #1565c0;
+            width: 100%; padding: 12px; border-radius: 8px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            cursor: pointer; margin-bottom: 15px;
+        }
+
+        .btn-save {
+            background: var(--primary-blue); color: white; width: 100%; padding: 15px; border: none;
+            border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        
+        .action-row { display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+        .btn-action { flex: 1; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-edit { background: #fff3e0; color: #ef6c00; }
+        .btn-delete { background: #ffebee; color: #c62828; }
+
+    </style>
+</head>
+<body>
+
+    <div id="pantalla-dash">
+        <div class="dash-total-card">
+            <div>TOTAL POSIBLES CLIENTES</div>
+            <div style="font-size: 48px; font-weight: bold; margin-top:5px;" id="dash-total">0</div>
+        </div>
+        <h3 style="margin-left:5px; color:#555; font-size:14px;">POR COMUNIDAD</h3>
+        <div class="grid-provincias">
+            <div class="stat-card border-asturias"><h4>Asturias</h4><div class="number" id="dash-asturias">0</div></div>
+            <div class="stat-card border-cantabria"><h4>Cantabria</h4><div class="number" id="dash-cantabria">0</div></div>
+            <div class="stat-card border-leon"><h4>León</h4><div class="number" id="dash-leon">0</div></div>
+            <div class="stat-card border-galicia"><h4>Galicia</h4><div class="number" id="dash-galicia">0</div></div>
+        </div>
+    </div>
+
+    <div id="pantalla-lista" style="display:none;">
+        <div class="search-container">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="input-busqueda" placeholder="Buscar..." autocomplete="off" onkeyup="filtrarClientes()">
+            </div>
+        </div>
+        <div class="card-list" id="lista-clientes" style="display:block;">
+            <div style="text-align:center; padding:50px 20px; color:#999;">
+                <i class="fas fa-circle-notch fa-spin" style="font-size:24px; margin-bottom:10px;"></i><br>
+                Cargando datos...
+            </div>
+        </div>
+    </div>
+
+    <div id="pantalla-mapa">
+        <div id="mi-mapa"></div>
+    </div>
+
+    <div class="fab-btn" onclick="abrirModalNuevo()">
+        <i class="fas fa-plus"></i>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="cambiarPestana('dash', this)"><i class="fas fa-columns"></i> Dash</div>
+        <div class="nav-item active" onclick="cambiarPestana('lista', this)"><i class="fas fa-users"></i> Clientes</div>
+        <div class="nav-item" onclick="cambiarPestana('mapa', this)"><i class="fas fa-map"></i> Mapa</div>
+    </div>
+
+    <div id="modal-nuevo" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="form-titulo">Nuevo Cliente</span>
+                <i class="fas fa-times" onclick="cerrarModal('modal-nuevo')" style="cursor:pointer; padding:10px;"></i>
+            </div>
+            <div class="modal-body">
+                <form id="form-cliente" autocomplete="off">
+                    
+                    <div class="form-group">
+                        <label>Nombre Tienda *</label>
+                        <input type="text" id="new-tienda" class="input-capital" autocomplete="off">
+                    </div>
+                    
+                    <button type="button" class="btn-gps" onclick="obtenerUbicacionGPS()" id="btn-gps-action">
+                        <i class="fas fa-location-crosshairs"></i> Usar mi ubicación actual (GPS)
+                    </button>
+                    <div id="gps-status" style="font-size:11px; color:green; text-align:center; margin-bottom:15px; display:none;">
+                        <i class="fas fa-check"></i> Coordenadas guardadas
+                    </div>
+
+                    <div class="form-group">
+                        <label>Dirección (Si no usas GPS)</label>
+                        <input type="text" id="new-direccion" class="input-capital" autocomplete="off" placeholder="Ej: Calle Ancha 2">
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                         <div class="form-group">
+                            <label>Provincia *</label>
+                            <select id="new-provincia">
+                                <option value="Asturias">Asturias</option>
+                                <option value="Cantabria">Cantabria</option>
+                                <option value="León">León</option>
+                                <option value="Galicia">Galicia</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Población *</label>
+                            <input type="text" id="new-poblacion" class="input-capital" autocomplete="off" placeholder="Ej: León">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Persona Contacto</label>
+                        <input type="text" id="new-contacto" class="input-capital" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Teléfono</label>
+                        <input type="tel" id="new-telefono" autocomplete="off">
+                    </div>
+                     <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="new-mail" autocomplete="off">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea id="new-notas" class="input-sentence" rows="3" placeholder="Detalles extra..." oninput="this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1)"></textarea>
+                    </div>
+
+                    <button type="button" class="btn-save" id="btn-guardar" onclick="guardarCliente()">
+                        GUARDAR
+                    </button>
+                    <div id="msg-estado" style="text-align:center; margin-top:10px; font-size:13px; color:#666; font-weight:bold;"></div>
+                    <div style="height:150px;"></div> </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-detalle" class="modal-overlay">
+        <div class="modal-content" style="height: 75vh;">
+            <div class="modal-header" style="background:var(--primary-blue); color:white;">
+                <span>Ficha Cliente</span>
+                <i class="fas fa-times" onclick="cerrarModal('modal-detalle')" style="cursor:pointer; padding:10px;"></i>
+            </div>
+            <div class="modal-body">
+                <h2 id="det-tienda" style="margin-top:0; font-size:22px;">...</h2>
+                <div style="color:#555; font-size:15px; margin-bottom:25px; line-height: 1.6;">
+                    <p style="margin:8px 0;"><i class="fas fa-map-marker-alt" style="width:25px; color:var(--primary-blue);"></i> <span id="det-direccion">...</span></p>
+                    <p style="margin:8px 0;"><i class="fas fa-user" style="width:25px; color:var(--primary-blue);"></i> <span id="det-contacto">...</span></p>
+                    <p style="margin:8px 0;"><i class="fas fa-phone" style="width:25px; color:var(--primary-blue);"></i> <span id="det-telefono">...</span></p>
+                    <p style="margin:8px 0;"><i class="fas fa-envelope" style="width:25px; color:var(--primary-blue);"></i> <span id="det-mail">...</span></p>
+                    
+                    <div style="margin-top:15px; background:#f9f9f9; padding:10px; border-radius:8px; border-left:3px solid var(--primary-blue);">
+                        <small style="font-weight:bold; color:#999;">NOTAS:</small><br>
+                        <span id="det-notas" style="font-style:italic;"></span>
+                    </div>
+                </div>
+                
+                <a id="btn-whatsapp" href="#" target="_blank" style="display:block; text-align:center; background:#25D366; color:white; padding:14px; border-radius:10px; text-decoration:none; font-weight:bold; font-size:16px;">
+                    <i class="fab fa-whatsapp"></i> Abrir WhatsApp
+                </a>
+
+                <div class="action-row">
+                    <button class="btn-action btn-edit" onclick="prepararEdicion()">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn-action btn-delete" onclick="borrarCliente()">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // TU URL
+        const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbzR1YMh4RN_lcCbv9hHCMVeTxub6cMOjbYGXdOqkNaAUmkDLz4-wgYlDVrl8o4DYy50Pg/exec";
+
+        var clientesGlobal = [];
+        var mapa = null;
+        var capaMarcadores = null;
+        var clienteSeleccionado = null; 
+        var tempLat = "";
+        var tempLon = "";
+
+        window.onload = function() {
+            cambiarPestana('dash', document.querySelector('.nav-item'));
+            cargarDatos();
+            configurarNavegacion(); // Activamos el truco de la tecla Enter
+        };
+
+        // --- FUNCIÓN NUEVA: NAVEGACIÓN CON ENTER ---
+        function configurarNavegacion() {
+            // Seleccionamos todos los inputs y selects dentro del formulario
+            const inputs = document.querySelectorAll('#form-cliente input, #form-cliente select');
+            
+            inputs.forEach((input, index) => {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // Evita que se envíe el formulario
+                        const nextInput = inputs[index + 1];
+                        if (nextInput) {
+                            nextInput.focus(); // Salta al siguiente
+                        } else {
+                            // Si es el último, saltamos al botón de guardar o al textarea
+                            document.getElementById('new-notas').focus();
+                        }
+                    }
+                });
+            });
+        }
+
+        // --- FUNCIONES DE MAYÚSCULAS (Data Clean) ---
+        function capitalizarPalabras(texto) {
+            if(!texto) return "";
+            // Convierte "calle ancha" en "Calle Ancha"
+            return texto.toLowerCase().replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
+        }
+        function capitalizarFrase(texto) {
+            if(!texto) return "";
+            // Convierte "sin notas extra" en "Sin notas extra"
+            return texto.charAt(0).toUpperCase() + texto.slice(1);
+        }
+
+        function cargarDatos() {
+            fetch(URL_SCRIPT)
+            .then(res => res.json())
+            .then(data => {
+                clientesGlobal = data;
+                actualizarDash();
+                renderizarLista(clientesGlobal);
+            })
+            .catch(err => {
+                console.error("Error:", err);
+                document.getElementById('lista-clientes').innerHTML = "<div style='text-align:center; padding:20px;'>Error de conexión.</div>";
+            });
+        }
+
+        function actualizarDash() {
+            document.getElementById('dash-total').innerText = clientesGlobal.length;
+            const contar = (prov) => clientesGlobal.filter(c => c.provincia && c.provincia.toLowerCase().includes(prov)).length;
+            document.getElementById('dash-asturias').innerText = contar('asturias');
+            document.getElementById('dash-cantabria').innerText = contar('cantabria');
+            document.getElementById('dash-leon').innerText = contar('león') || contar('leon');
+            document.getElementById('dash-galicia').innerText = contar('galicia');
+        }
+
+        function obtenerUbicacionGPS() {
+            const btn = document.getElementById('btn-gps-action');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Localizando...';
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        tempLat = position.coords.latitude;
+                        tempLon = position.coords.longitude;
+                        btn.innerHTML = '<i class="fas fa-check"></i> Ubicación Detectada';
+                        btn.style.background = "#e8f5e9";
+                        btn.style.color = "#2e7d32";
+                        btn.style.border = "1px solid #2e7d32";
+                        document.getElementById('gps-status').style.display = 'block';
+                    },
+                    (error) => {
+                        alert("Error GPS: " + error.message);
+                        btn.innerHTML = '<i class="fas fa-location-crosshairs"></i> Intentar de nuevo';
+                    }
+                );
+            } else { alert("GPS no soportado"); }
+        }
+
+        function abrirModalNuevo() {
+            clienteSeleccionado = null;
+            tempLat = ""; tempLon = ""; 
+            document.getElementById('gps-status').style.display = 'none';
+            document.getElementById('btn-gps-action').innerHTML = '<i class="fas fa-location-crosshairs"></i> Usar mi ubicación actual (GPS)';
+            document.getElementById('btn-gps-action').style = "";
+            document.getElementById('msg-estado').innerText = "";
+            
+            document.getElementById('form-titulo').innerText = "Nuevo Cliente";
+            document.getElementById('btn-guardar').innerText = "GUARDAR CLIENTE";
+            document.getElementById('form-cliente').reset();
+            document.getElementById('modal-nuevo').style.display = 'flex';
+            // Poner foco en el primer campo
+            setTimeout(() => document.getElementById('new-tienda').focus(), 300);
+        }
+
+        function prepararEdicion() {
+            if(!clienteSeleccionado) return;
+            cerrarModal('modal-detalle');
+            document.getElementById('form-titulo').innerText = "Editar Cliente";
+            document.getElementById('btn-guardar').innerText = "ACTUALIZAR DATOS";
+            document.getElementById('msg-estado').innerText = "";
+            
+            document.getElementById('new-tienda').value = clienteSeleccionado.tienda;
+            document.getElementById('new-contacto').value = clienteSeleccionado.contacto;
+            document.getElementById('new-provincia').value = clienteSeleccionado.provincia;
+            document.getElementById('new-poblacion').value = clienteSeleccionado.poblacion;
+            document.getElementById('new-direccion').value = clienteSeleccionado.direccion;
+            document.getElementById('new-telefono').value = clienteSeleccionado.telefono;
+            document.getElementById('new-mail').value = clienteSeleccionado.mail;
+            document.getElementById('new-notas').value = clienteSeleccionado.notas || "";
+            
+            tempLat = clienteSeleccionado.latitud;
+            tempLon = clienteSeleccionado.longitud;
+            document.getElementById('modal-nuevo').style.display = 'flex';
+        }
+
+        async function guardarCliente() {
+            const btn = document.getElementById('btn-guardar');
+            const msg = document.getElementById('msg-estado');
+            
+            // Recoger y LIMPIAR datos (Mayúsculas forzadas aquí)
+            let datos = {
+                accion: clienteSeleccionado ? 'editar' : 'crear',
+                fila: clienteSeleccionado ? clienteSeleccionado.fila : null,
+                tienda: capitalizarPalabras(document.getElementById('new-tienda').value),
+                contacto: capitalizarPalabras(document.getElementById('new-contacto').value),
+                provincia: document.getElementById('new-provincia').value,
+                poblacion: capitalizarPalabras(document.getElementById('new-poblacion').value),
+                direccion: capitalizarPalabras(document.getElementById('new-direccion').value),
+                telefono: document.getElementById('new-telefono').value,
+                mail: document.getElementById('new-mail').value,
+                notas: capitalizarFrase(document.getElementById('new-notas').value),
+                latitud: tempLat,
+                longitud: tempLon
+            };
+
+            if(!datos.tienda || !datos.poblacion) { alert("Faltan Tienda o Población"); return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            msg.innerText = "Procesando...";
+
+            if ((!datos.latitud || !datos.longitud) && datos.direccion) {
+                 msg.innerText = "Buscando dirección en el mapa...";
+                 try {
+                    const query = `${datos.direccion}, ${datos.poblacion}, ${datos.provincia}, España`;
+                    const respuestaGeo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                    const geoData = await respuestaGeo.json();
+                    
+                    if (geoData.length > 0) {
+                        datos.latitud = geoData[0].lat;
+                        datos.longitud = geoData[0].lon;
+                        msg.innerText = "📍 Dirección localizada.";
+                        msg.style.color = "green";
+                    } else {
+                        const query2 = `${datos.direccion}, ${datos.poblacion}, España`;
+                        const res2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query2)}`);
+                        const geoData2 = await res2.json();
+                        if(geoData2.length > 0){
+                             datos.latitud = geoData2[0].lat;
+                             datos.longitud = geoData2[0].lon;
+                             msg.innerText = "📍 Localizada (aprox).";
+                        } else {
+                            msg.innerText = "⚠️ No localizada en mapa (se guarda sin pin).";
+                            msg.style.color = "orange";
+                        }
+                    }
+                } catch (e) { console.log("Error mapa", e); }
+            }
+
+            fetch(URL_SCRIPT, {
+                method: 'POST', mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            }).then(() => {
+                alert("¡Guardado correctamente!");
+                cerrarModal('modal-nuevo');
+                cargarDatos();
+                btn.disabled = false;
+                btn.innerHTML = "GUARDAR";
+                msg.innerText = "";
+            }).catch(e => {
+                alert("Error de conexión.");
+                btn.disabled = false;
+            });
+        }
+
+        function borrarCliente() {
+            if(!clienteSeleccionado) return;
+            if(!confirm("¿Eliminar a " + clienteSeleccionado.tienda + "?")) return;
+            const datos = { accion: 'borrar', fila: clienteSeleccionado.fila };
+            
+            fetch(URL_SCRIPT, {
+                method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            }).then(() => {
+                alert("Eliminado");
+                cerrarModal('modal-detalle');
+                cargarDatos();
+            });
+        }
+
+        function cambiarPestana(pestana, elemento) {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            elemento.classList.add('active');
+            document.getElementById('pantalla-dash').style.display = pestana === 'dash' ? 'block' : 'none';
+            document.getElementById('pantalla-lista').style.display = pestana === 'lista' ? 'block' : 'none';
+            document.getElementById('pantalla-mapa').style.display = pestana === 'mapa' ? 'block' : 'none';
+            document.querySelector('.fab-btn').style.display = pestana === 'mapa' ? 'none' : 'flex';
+            if (pestana === 'mapa') cargarMapa();
+        }
+
+        function renderizarLista(lista) {
+            const cont = document.getElementById('lista-clientes');
+            cont.innerHTML = "";
+            if (lista.length === 0) {
+                 cont.innerHTML = "<div style='text-align:center; padding:40px; color:#999;'>No hay datos</div>";
+                 return;
+            }
+            lista.forEach((c) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => verDetalle(c);
+                card.innerHTML = `
+                <div class="card-header"><span class="client-name">${c.tienda}</span><i class="fas fa-chevron-right" style="color:#ccc"></i></div>
+                <div class="tags-row"><div class="tag tag-loc"><i class="fas fa-map-marker-alt"></i> ${c.poblacion}</div><div class="tag tag-user"><i class="fas fa-user"></i> ${c.contacto}</div></div>`;
+                cont.appendChild(card);
+            });
+        }
+
+        function verDetalle(cliente) {
+            clienteSeleccionado = cliente; 
+            document.getElementById('det-tienda').innerText = cliente.tienda;
+            document.getElementById('det-direccion').innerText = (cliente.direccion || "") + ", " + (cliente.poblacion || "");
+            document.getElementById('det-contacto').innerText = cliente.contacto || "-";
+            document.getElementById('det-telefono').innerText = cliente.telefono || "-";
+            document.getElementById('det-mail').innerText = cliente.mail || "-";
+            document.getElementById('det-notas').innerText = cliente.notas || "Sin notas"; 
+            
+            const btnWa = document.getElementById('btn-whatsapp');
+            if(cliente.telefono) {
+                btnWa.href = `https://wa.me/34${String(cliente.telefono).replace(/\D/g,'')}`;
+                btnWa.style.display = 'block';
+            } else { btnWa.style.display = 'none'; }
+            document.getElementById('modal-detalle').style.display = 'flex';
+        }
+
+        function cargarMapa() {
+            if (!mapa) {
+                // Centrado en el norte de España (León/Asturias)
+                mapa = L.map('mi-mapa').setView([42.8, -5.8], 8);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(mapa);
+                capaMarcadores = L.layerGroup().addTo(mapa);
+            }
+            setTimeout(() => mapa.invalidateSize(), 200);
+            
+            capaMarcadores.clearLayers();
+            
+            clientesGlobal.forEach(c => {
+                // Corrección de coordenadas (Punto vs Coma)
+                let latStr = String(c.latitud).replace(',', '.');
+                let lonStr = String(c.longitud).replace(',', '.');
+                let lat = parseFloat(latStr);
+                let lon = parseFloat(lonStr);
+                
+                if(!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+                    L.marker([lat, lon]).addTo(capaMarcadores).bindPopup(`<b>${c.tienda}</b><br>${c.poblacion}`);
+                }
+            });
+        }
+        function cerrarModal(id) { document.getElementById(id).style.display = 'none'; }
+        function filtrarClientes() {
+            const txt = document.getElementById('input-busqueda').value.toLowerCase();
+            renderizarLista(clientesGlobal.filter(c => c.tienda.toLowerCase().includes(txt) || c.poblacion.toLowerCase().includes(txt)));
+        }
+    </script>
+</body>
+</html>
