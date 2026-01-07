@@ -10,6 +10,7 @@
     
     <link rel="icon" type="image/png" href="assets/objetivo.png">
     <link rel="apple-touch-icon" href="assets/objetivo.png">
+    
     <title>Gestión Clientes</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -35,16 +36,8 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* --- CLASE NUEVA PARA MAYÚSCULAS VISUALES --- */
-        .input-capital {
-            text-transform: capitalize; /* Visualmente pone la primera letra de cada palabra en mayúscula */
-        }
+        .input-capital { text-transform: capitalize; }
         
-        /* Clase para notas (Solo primera letra) */
-        .input-sentence {
-            /* No hay CSS perfecto para esto, lo haremos por JS, pero esto ayuda */
-        }
-
         /* Pines mapa ajustados */
         .leaflet-marker-icon {
             width: 18px !important; height: 30px !important;
@@ -138,7 +131,6 @@
             width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
             font-size: 16px; box-sizing: border-box; background: #fff; font-family: inherit;
         }
-        /* Resaltar campo activo */
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             border-color: var(--primary-blue);
             box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.1);
@@ -184,7 +176,7 @@
         <div class="search-container">
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="input-busqueda" placeholder="Buscar..." autocomplete="off" onkeyup="filtrarClientes()">
+                <input type="text" id="input-busqueda" placeholder="Buscar por Tienda, Población o Provincia..." autocomplete="off" onkeyup="filtrarClientes()">
             </div>
         </div>
         <div class="card-list" id="lista-clientes" style="display:block;">
@@ -289,6 +281,7 @@
                 <h2 id="det-tienda" style="margin-top:0; font-size:22px;">...</h2>
                 <div style="color:#555; font-size:15px; margin-bottom:25px; line-height: 1.6;">
                     <p style="margin:8px 0;"><i class="fas fa-map-marker-alt" style="width:25px; color:var(--primary-blue);"></i> <span id="det-direccion">...</span></p>
+                    <p style="margin:8px 0;"><i class="fas fa-city" style="width:25px; color:var(--primary-blue);"></i> <span id="det-provincia">...</span></p>
                     <p style="margin:8px 0;"><i class="fas fa-user" style="width:25px; color:var(--primary-blue);"></i> <span id="det-contacto">...</span></p>
                     <p style="margin:8px 0;"><i class="fas fa-phone" style="width:25px; color:var(--primary-blue);"></i> <span id="det-telefono">...</span></p>
                     <p style="margin:8px 0;"><i class="fas fa-envelope" style="width:25px; color:var(--primary-blue);"></i> <span id="det-mail">...</span></p>
@@ -329,39 +322,29 @@
         window.onload = function() {
             cambiarPestana('dash', document.querySelector('.nav-item'));
             cargarDatos();
-            configurarNavegacion(); // Activamos el truco de la tecla Enter
+            configurarNavegacion();
         };
 
-        // --- FUNCIÓN NUEVA: NAVEGACIÓN CON ENTER ---
         function configurarNavegacion() {
-            // Seleccionamos todos los inputs y selects dentro del formulario
             const inputs = document.querySelectorAll('#form-cliente input, #form-cliente select');
-            
             inputs.forEach((input, index) => {
                 input.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
-                        e.preventDefault(); // Evita que se envíe el formulario
+                        e.preventDefault();
                         const nextInput = inputs[index + 1];
-                        if (nextInput) {
-                            nextInput.focus(); // Salta al siguiente
-                        } else {
-                            // Si es el último, saltamos al botón de guardar o al textarea
-                            document.getElementById('new-notas').focus();
-                        }
+                        if (nextInput) nextInput.focus();
+                        else document.getElementById('new-notas').focus();
                     }
                 });
             });
         }
 
-        // --- FUNCIONES DE MAYÚSCULAS (Data Clean) ---
         function capitalizarPalabras(texto) {
             if(!texto) return "";
-            // Convierte "calle ancha" en "Calle Ancha"
             return texto.toLowerCase().replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
         }
         function capitalizarFrase(texto) {
             if(!texto) return "";
-            // Convierte "sin notas extra" en "Sin notas extra"
             return texto.charAt(0).toUpperCase() + texto.slice(1);
         }
 
@@ -369,7 +352,15 @@
             fetch(URL_SCRIPT)
             .then(res => res.json())
             .then(data => {
-                clientesGlobal = data;
+                // AQUI ESTA LA MAGIA DEL ORDEN (Ordenar por Provincia)
+                clientesGlobal = data.sort((a, b) => {
+                    const provA = (a.provincia || "").toLowerCase();
+                    const provB = (b.provincia || "").toLowerCase();
+                    if (provA < provB) return -1;
+                    if (provA > provB) return 1;
+                    return 0;
+                });
+
                 actualizarDash();
                 renderizarLista(clientesGlobal);
             })
@@ -422,7 +413,6 @@
             document.getElementById('btn-guardar').innerText = "GUARDAR CLIENTE";
             document.getElementById('form-cliente').reset();
             document.getElementById('modal-nuevo').style.display = 'flex';
-            // Poner foco en el primer campo
             setTimeout(() => document.getElementById('new-tienda').focus(), 300);
         }
 
@@ -451,7 +441,6 @@
             const btn = document.getElementById('btn-guardar');
             const msg = document.getElementById('msg-estado');
             
-            // Recoger y LIMPIAR datos (Mayúsculas forzadas aquí)
             let datos = {
                 accion: clienteSeleccionado ? 'editar' : 'crear',
                 fila: clienteSeleccionado ? clienteSeleccionado.fila : null,
@@ -554,9 +543,13 @@
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.onclick = () => verDetalle(c);
+                // AQUI HE PUESTO QUE SE VEA LA PROVINCIA EN LA LISTA
                 card.innerHTML = `
                 <div class="card-header"><span class="client-name">${c.tienda}</span><i class="fas fa-chevron-right" style="color:#ccc"></i></div>
-                <div class="tags-row"><div class="tag tag-loc"><i class="fas fa-map-marker-alt"></i> ${c.poblacion}</div><div class="tag tag-user"><i class="fas fa-user"></i> ${c.contacto}</div></div>`;
+                <div class="tags-row">
+                    <div class="tag tag-loc"><i class="fas fa-map-marker-alt"></i> ${c.poblacion} (${c.provincia})</div>
+                    <div class="tag tag-user"><i class="fas fa-user"></i> ${c.contacto}</div>
+                </div>`;
                 cont.appendChild(card);
             });
         }
@@ -565,6 +558,9 @@
             clienteSeleccionado = cliente; 
             document.getElementById('det-tienda').innerText = cliente.tienda;
             document.getElementById('det-direccion').innerText = (cliente.direccion || "") + ", " + (cliente.poblacion || "");
+            // Añadido campo de provincia en detalle
+            document.getElementById('det-provincia').innerText = cliente.provincia || "";
+            
             document.getElementById('det-contacto').innerText = cliente.contacto || "-";
             document.getElementById('det-telefono').innerText = cliente.telefono || "-";
             document.getElementById('det-mail').innerText = cliente.mail || "-";
@@ -580,7 +576,6 @@
 
         function cargarMapa() {
             if (!mapa) {
-                // Centrado en el norte de España (León/Asturias)
                 mapa = L.map('mi-mapa').setView([42.8, -5.8], 8);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(mapa);
                 capaMarcadores = L.layerGroup().addTo(mapa);
@@ -590,7 +585,6 @@
             capaMarcadores.clearLayers();
             
             clientesGlobal.forEach(c => {
-                // Corrección de coordenadas (Punto vs Coma)
                 let latStr = String(c.latitud).replace(',', '.');
                 let lonStr = String(c.longitud).replace(',', '.');
                 let lat = parseFloat(latStr);
@@ -602,9 +596,17 @@
             });
         }
         function cerrarModal(id) { document.getElementById(id).style.display = 'none'; }
+        
+        // AQUI ESTA LA MAGIA DEL BUSCADOR
         function filtrarClientes() {
             const txt = document.getElementById('input-busqueda').value.toLowerCase();
-            renderizarLista(clientesGlobal.filter(c => c.tienda.toLowerCase().includes(txt) || c.poblacion.toLowerCase().includes(txt)));
+            const filtrados = clientesGlobal.filter(c => {
+               const tienda = (c.tienda || "").toLowerCase();
+               const pob = (c.poblacion || "").toLowerCase();
+               const prov = (c.provincia || "").toLowerCase(); // Ahora busca en provincia
+               return tienda.includes(txt) || pob.includes(txt) || prov.includes(txt);
+            });
+            renderizarLista(filtrados);
         }
     </script>
 </body>
