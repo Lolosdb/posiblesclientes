@@ -197,9 +197,10 @@
 
         /* --- UI ELEMENTS --- */
         .fab-btn {
-            position: absolute;
-            /* Cambiado de fixed a absolute para mantenerse dentro del contenedor */
+            position: fixed;
+            /* Volvemos a fixed para que no se mueva con el scroll */
             bottom: 85px;
+            /* Se ajusta con JS para PC */
             right: 20px;
             width: 56px;
             height: 56px;
@@ -213,6 +214,7 @@
             font-size: 24px;
             cursor: pointer;
             z-index: 1000;
+            transition: right 0.3s ease;
         }
 
         .search-container {
@@ -312,10 +314,12 @@
         }
 
         .bottom-nav {
-            position: absolute;
-            /* Cambiado de fixed a absolute para mantenerse dentro del contenedor */
+            position: fixed;
+            /* Volvemos a fixed para visibilidad total */
             bottom: 0;
+            /* Se ajusta con JS para PC */
             width: 100%;
+            max-width: 500px;
             background: var(--primary-blue);
             display: flex;
             justify-content: space-around;
@@ -324,6 +328,7 @@
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
             z-index: 2000;
             padding-bottom: max(12px, env(safe-area-inset-bottom));
+            transition: left 0.3s ease;
         }
 
         .nav-item {
@@ -493,6 +498,58 @@
             color: #c62828;
         }
 
+        /* Modal Confirmación Salida */
+        #modal-salir {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .salir-content {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            width: 85%;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .salir-btns {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn-salir-confirm {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-salir-cancel {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-weight: bold;
+            cursor: pointer;
+            background: white;
+            color: #555;
+        }
+
         /* Aviso Rotación */
         #aviso-rotacion {
             display: none;
@@ -525,6 +582,19 @@
         <i class="fas fa-mobile-alt" style="font-size: 50px; margin-bottom: 20px;"></i>
         <h2>POR FAVOR, GIRA EL TELÉFONO</h2>
         <p>Esta aplicación está diseñada para usarse en vertical.</p>
+    </div>
+
+    <!-- Modal Salida -->
+    <div id="modal-salir">
+        <div class="salir-content">
+            <i class="fas fa-sign-out-alt" style="font-size: 40px; color: var(--danger); margin-bottom: 15px;"></i>
+            <h3 style="margin:0 0 10px 0;">¿Deseas salir?</h3>
+            <p style="color:#666; font-size: 14px; margin: 0;">Se cerrará la aplicación de Clientes.</p>
+            <div class="salir-btns">
+                <button class="btn-salir-confirm" onclick="confirmarSalida()">SÍ, SALIR</button>
+                <button class="btn-salir-cancel" onclick="cancelarSalida()">NO</button>
+            </div>
+        </div>
     </div>
 
     <div class="app-container">
@@ -761,7 +831,52 @@
                 cargarDatos();
                 configurarNavegacion();
                 registrarSW();
+                gestionarRetroceso();
+                ajustarUIparaPC();
             };
+
+            function ajustarUIparaPC() {
+                // Ajusta la posición de los elementos fijos si estamos en PC
+                const ajustar = () => {
+                    const container = document.querySelector('.app-container');
+                    const nav = document.querySelector('.bottom-nav');
+                    const fab = document.querySelector('.fab-btn');
+
+                    if (window.innerWidth > 500) {
+                        const rect = container.getBoundingClientRect();
+                        nav.style.left = rect.left + 'px';
+                        fab.style.right = (window.innerWidth - rect.right + 20) + 'px';
+                    } else {
+                        nav.style.left = '0';
+                        fab.style.right = '20px';
+                    }
+                };
+                window.onresize = ajustar;
+                ajustar();
+            }
+
+            function gestionarRetroceso() {
+                // Insertar estado inicial
+                history.pushState({ page: 1 }, "");
+
+                window.onpopstate = function (event) {
+                    // Si el usuario intentó ir atrás
+                    document.getElementById('modal-salir').style.display = 'flex';
+                    // Volver a meter el estado para "bloquear" el siguiente atrás
+                    history.pushState({ page: 1 }, "");
+                };
+            }
+
+            function confirmarSalida() {
+                // En PWAs, esto suele cerrar la app si se inició desde el home
+                window.close();
+                // Por si acaso no funciona el close (seguridad navegadores)
+                window.location.href = "about:blank";
+            }
+
+            function cancelarSalida() {
+                document.getElementById('modal-salir').style.display = 'none';
+            }
 
             function registrarSW() {
                 if ('serviceWorker' in navigator) {
