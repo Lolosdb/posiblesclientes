@@ -860,18 +860,32 @@
                 history.pushState({ page: 1 }, "");
 
                 window.onpopstate = function (event) {
-                    // Si el usuario intentó ir atrás
-                    document.getElementById('modal-salir').style.display = 'flex';
-                    // Volver a meter el estado para "bloquear" el siguiente atrás
-                    history.pushState({ page: 1 }, "");
+                    // Si el usuario intentó ir atrás y el modal no está visible
+                    if (document.getElementById('modal-salir').style.display !== 'flex') {
+                        document.getElementById('modal-salir').style.display = 'flex';
+                        // Volver a meter el estado para "bloquear" el siguiente atrás
+                        history.pushState({ page: 1 }, "");
+                    }
                 };
             }
 
             function confirmarSalida() {
-                // En PWAs, esto suele cerrar la app si se inició desde el home
+                // Intentar cerrar la app
                 window.close();
-                // Por si acaso no funciona el close (seguridad navegadores)
-                window.location.href = "about:blank";
+
+                // Si llegamos aquí es que window.close() no funcionó (restricción navegador)
+                // Cambiamos el contenido del modal para que sea una pantalla de despedida real
+                const content = document.querySelector('.salir-content');
+                content.innerHTML = `
+                    <i class="fas fa-check-circle" style="font-size: 50px; color: var(--success); margin-bottom: 20px;"></i>
+                    <h3 style="margin:0 0 10px 0;">¡Hasta pronto!</h3>
+                    <p style="color:#666; font-size: 14px; margin-bottom: 20px;">Ya puedes cerrar esta pestaña o la aplicación de forma segura.</p>
+                    <button class="btn-salir-cancel" onclick="location.reload()" style="width:100%">VOLVER A ENTRAR</button>
+                `;
+
+                // Ocultar el resto de la app para dar sensación de "cerrado"
+                document.querySelector('.app-container').style.opacity = "0.1";
+                document.querySelector('.app-container').style.pointerEvents = "none";
             }
 
             function cancelarSalida() {
